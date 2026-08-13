@@ -9,7 +9,7 @@ class Client(discord.Client):
         if message.author.bot:
             return
 
-        print(f'Message from {message.author}: {message.content}')
+        #print(f'Message from {message.author}: {message.content}')
         if message.content.startswith('!wiki'):
             await message.channel.send('https://ship-community-valrus.fandom.com/wiki/Main_Page')
 
