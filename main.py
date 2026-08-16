@@ -1,4 +1,5 @@
 import os
+import re
 import urllib.parse
 import discord
 
@@ -28,19 +29,17 @@ WIKI_ROUTES = {
     "badges": "Badges",
 }
 
-# Auto-responder keywords (currently cannon-focused + easy to expand)
-WIKI_KEYWORDS = {
-    "cannon": {
-        "title": "Cannons Wiki Page",
-        "page": "Cannons",
-        "description": "Info about cannons, builds, and references."
-    },
-    "cannons": {
-        "title": "Cannons Wiki Page",
-        "page": "Cannons",
-        "description": "Info about cannons, builds, and references."
-    },
-}
+# Regex keyword auto-responder patterns (wiki only)
+WIKI_KEYWORD_PATTERNS = [
+    (
+        r"\bcannon\b|\bcannons\b",
+        {
+            "title": "Cannons Wiki Page",
+            "page": "Cannons",
+            "description": "Info about cannons, builds, and references.",
+        },
+    ),
+]
 
 class Client(discord.Client):
     async def on_ready(self):
@@ -59,7 +58,7 @@ class Client(discord.Client):
         page_part = raw
         anchor_part = ""
 
-        # support !wiki cannons#section_name
+        # Support !wiki cannons#section_name
         if "#" in raw:
             page_part, anchor_part = raw.split("#", 1)
             anchor_part = anchor_part.strip().replace(" ", "_")
@@ -69,7 +68,7 @@ class Client(discord.Client):
         if normalized in WIKI_ROUTES:
             page = WIKI_ROUTES[normalized]
         else:
-            # fallback: convert words to Wiki_Page_Format
+            # Fallback: convert words to Wiki_Page_Format
             page = page_part.strip().replace(" ", "_")
             page = urllib.parse.quote(page, safe="_()'-")
 
@@ -83,9 +82,9 @@ class Client(discord.Client):
 
     def find_wiki_keyword(self, content: str):
         text = content.lower()
-        for keyword, data in WIKI_KEYWORDS.items():
-            if keyword in text:
-                return keyword, data
+        for pattern, data in WIKI_KEYWORD_PATTERNS:
+            if re.search(pattern, text):
+                return pattern, data
         return None, None
 
     async def on_message(self, message):
@@ -93,6 +92,7 @@ class Client(discord.Client):
             return
 
         content = message.content.strip()
+        print(f"MSG from {message.author}: {content}")
 
         # !wiki command router
         if content.lower().startswith("!wiki"):
@@ -103,7 +103,12 @@ class Client(discord.Client):
             title = "Wiki Home" if not query else "Wiki Link"
             description = "Main wiki page." if not query else f"Direct link for: `{query}`"
 
-            embed = self.build_embed(title=title, url=url, description=description, color=0x5865F2)
+            embed = self.build_embed(
+                title=title,
+                url=url,
+                description=description,
+                color=0x5865F2
+            )
             await message.channel.send(embed=embed)
             return
 
@@ -118,14 +123,19 @@ class Client(discord.Client):
             await message.channel.send(embed=embed)
             return
 
-        # Wiki keyword auto-responder (currently cannon/cannons)
-        keyword, data = self.find_wiki_keyword(content)
-        if keyword:
-            url = WIKI_BASE_URL + urllib.parse.quote(data["page"].replace(" ", "_"), safe="_()'-")
+        # Wiki keyword auto-responder (cannon/cannons)
+        keyword_match, data = self.find_wiki_keyword(content)
+        print("KEYWORD MATCH:", keyword_match)
+
+        if keyword_match:
+            url = WIKI_BASE_URL + urllib.parse.quote(
+                data["page"].replace(" ", "_"),
+                safe="_()'-"
+            )
             embed = self.build_embed(
                 title=data["title"],
                 url=url,
-                description=f"{data['description']}\n\nMatched keyword: `{keyword}`",
+                description=f"{data['description']}\n\nMatched: `{keyword_match}`",
                 color=0x2ECC71
             )
             await message.channel.send(embed=embed)
@@ -133,7 +143,7 @@ class Client(discord.Client):
 
 
 intents = discord.Intents.default()
-intents.message
+intents.message_content = True
 
 client = Client(intents=intents)
 client.run(os.environ["DISCORD_TOKEN"])
